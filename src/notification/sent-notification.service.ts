@@ -26,7 +26,9 @@ export class SentNotificationService {
    * Mark notification as sent
    */
   async markSent(eventId: string, userId: number) {
-    this.logger.log(`Marking notification as sent: eventId=${eventId}, userId=${userId}`);
+    this.logger.log(
+      `Marking notification as sent: eventId=${eventId}, userId=${userId}`,
+    );
     return this.prisma.sentNotification.create({
       data: { eventId, userId },
     });

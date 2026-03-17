@@ -30,7 +30,9 @@ export class UserService {
   }
 
   async upsert(chatId: string, identifier: string) {
-    this.logger.log(`Upserting user with chatId: ${chatId}, identifier: ${identifier}`);
+    this.logger.log(
+      `Upserting user with chatId: ${chatId}, identifier: ${identifier}`,
+    );
     return this.prisma.user.upsert({
       where: { chatId },
       update: { identifier },

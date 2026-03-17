@@ -25,7 +25,10 @@ export class NotificationCronService {
       const twoHoursLater = new Date(now.getTime() + 2 * 60 * 60 * 1000);
 
       // Get upcoming events
-      const events = await this.calendarService.getUpcomingEvents(now, twoHoursLater);
+      const events = await this.calendarService.getUpcomingEvents(
+        now,
+        twoHoursLater,
+      );
 
       this.logger.log(`Found ${events.length} upcoming events to process`);
 
@@ -38,7 +41,9 @@ export class NotificationCronService {
         // Parse identifier from event
         const identifier = this.calendarService.parseIdentifier(event);
         if (!identifier) {
-          this.logger.debug(`No identifier found for event: ${event.summary || event.id}`);
+          this.logger.debug(
+            `No identifier found for event: ${event.summary || event.id}`,
+          );
           continue;
         }
 
@@ -47,8 +52,14 @@ export class NotificationCronService {
       }
 
       this.logger.log('Scheduled lesson check completed');
-    } catch (error) {
-      this.logger.error(`Error in scheduled lesson check: ${error.message}`, error.stack);
+    } catch (error: unknown) {
+      const errorMessage =
+        error instanceof Error ? error.message : 'Unknown error';
+      const errorStack = error instanceof Error ? error.stack : undefined;
+      this.logger.error(
+        `Error in scheduled lesson check: ${errorMessage}`,
+        errorStack,
+      );
     }
   }
 }

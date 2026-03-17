@@ -7,12 +7,12 @@ import { TelegrafModule } from '../telegraf/telegraf.module';
 import { CalendarModule } from '../calendar/calendar.module';
 
 @Module({
-  imports: [
-    UserModule,
-    forwardRef(() => TelegrafModule),
-    CalendarModule,
+  imports: [UserModule, forwardRef(() => TelegrafModule), CalendarModule],
+  providers: [
+    NotificationService,
+    SentNotificationService,
+    NotificationCronService,
   ],
-  providers: [NotificationService, SentNotificationService, NotificationCronService],
   exports: [NotificationService, SentNotificationService],
 })
 export class NotificationModule {}

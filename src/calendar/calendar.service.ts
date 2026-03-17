@@ -19,20 +19,32 @@ export class CalendarService {
 
   constructor(private configService: ConfigService) {
     const credentials = this.configService.get<string>('GOOGLE_CREDENTIALS');
-    this.calendarId = this.configService.get<string>('GOOGLE_CALENDAR_ID', 'primary');
+    this.calendarId = this.configService.get<string>(
+      'GOOGLE_CALENDAR_ID',
+      'primary',
+    );
 
     if (credentials) {
       const auth = new google.auth.GoogleAuth({
         credentials: JSON.parse(credentials),
         scopes: ['https://www.googleapis.com/auth/calendar'],
       });
-      this.calendar = google.calendar({ version: 'v3', auth });
+
+      this.calendar = google.calendar({
+        version: 'v3',
+        auth,
+      });
     } else {
-      this.logger.warn('Google credentials not provided. CalendarService will not function.');
+      this.logger.warn(
+        'Google credentials not provided. CalendarService will not function.',
+      );
     }
   }
 
-  async getUpcomingEvents(startTime: Date, endTime: Date): Promise<CalendarEvent[]> {
+  async getUpcomingEvents(
+    startTime: Date,
+    endTime: Date,
+  ): Promise<CalendarEvent[]> {
     if (!this.calendar) {
       this.logger.error('Calendar API not initialized');
       return [];
@@ -50,8 +62,14 @@ export class CalendarService {
       const events = response.data.items || [];
       this.logger.log(`Found ${events.length} upcoming events`);
       return events as CalendarEvent[];
-    } catch (error) {
-      this.logger.error(`Error fetching calendar events: ${error.message}`, error.stack);
+    } catch (error: unknown) {
+      const errorMessage =
+        error instanceof Error ? error.message : 'Unknown error';
+      const errorStack = error instanceof Error ? error.stack : undefined;
+      this.logger.error(
+        `Error fetching calendar events: ${errorMessage}`,
+        errorStack,
+      );
       return [];
     }
   }
@@ -61,7 +79,7 @@ export class CalendarService {
    */
   parseIdentifier(event: CalendarEvent): string | null {
     const text = `${event.summary || ''} ${event.description || ''}`;
-    
+
     // Try to find email pattern
     const emailPattern = /[a-zA-Z0-9._-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/;
     const emailMatch = text.match(emailPattern);

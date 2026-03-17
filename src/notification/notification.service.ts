@@ -27,17 +27,23 @@ export class NotificationService {
       }
 
       // Check if already sent
-      const alreadySent = await this.sentNotificationService.wasSent(event.id, user.id);
+      const alreadySent = await this.sentNotificationService.wasSent(
+        event.id,
+        user.id,
+      );
       if (alreadySent) {
-        this.logger.debug(`Notification already sent for eventId=${event.id}, userId=${user.id}`);
+        this.logger.debug(
+          `Notification already sent for eventId=${event.id}, userId=${user.id}`,
+        );
         return;
       }
 
-      // Format event start time
+      // Format event start time (GMT+4 timezone)
       const startTime = event.start?.dateTime || event.start?.date;
       const startDate = startTime ? new Date(startTime) : null;
       const timeString = startDate
         ? startDate.toLocaleString('ru-RU', {
+            timeZone: 'Europe/Samara',  // GMT+4
             day: 'numeric',
             month: 'long',
             hour: '2-digit',
@@ -46,19 +52,25 @@ export class NotificationService {
         : 'время не указано';
 
       // Send message
-      const message = `📚 *Напоминание о занятии*\n\n` +
-        `*Тема:* ${event.summary || 'Без названия'}\n` +
-        `*Время:* ${timeString}\n\n` +
+      const message =
+        `📚 *Напоминание о занятии*\n\n` +
+        `*Гитарный кабинет*\n` +
+        `*Время:* ${timeString} (МСК+1)\n\n` +
         `Не забудьте подготовиться к занятию!`;
 
-      await this.telegrafService.sendMessage(user.chatId, message, { parse_mode: 'Markdown' });
+      await this.telegrafService.sendMessage(user.chatId, message, {
+        parse_mode: 'Markdown',
+      });
 
       // Mark as sent
       await this.sentNotificationService.markSent(event.id, user.id);
 
       this.logger.log(`Reminder sent to user ${user.id} for event ${event.id}`);
-    } catch (error) {
-      this.logger.error(`Error sending reminder: ${error.message}`, error.stack);
+    } catch (error: unknown) {
+      const errorMessage =
+        error instanceof Error ? error.message : 'Unknown error';
+      const errorStack = error instanceof Error ? error.stack : undefined;
+      this.logger.error(`Error sending reminder: ${errorMessage}`, errorStack);
     }
   }
 }
