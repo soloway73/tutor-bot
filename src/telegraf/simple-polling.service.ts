@@ -1,4 +1,9 @@
-import { Injectable, Logger, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  OnModuleInit,
+  OnModuleDestroy,
+} from '@nestjs/common';
 import { UserService } from '../user/user.service';
 import { CalendarService } from '../calendar/calendar.service';
 import { SentNotificationService } from '../notification/sent-notification.service';
@@ -20,7 +25,9 @@ export class SimplePollingService implements OnModuleInit, OnModuleDestroy {
     private sentNotificationService: SentNotificationService,
   ) {}
 
-  private formatEventTime(event: import('../calendar/calendar.service').CalendarEvent): string {
+  private formatEventTime(
+    event: import('../calendar/calendar.service').CalendarEvent,
+  ): string {
     const startTime = event.start?.dateTime || event.start?.date;
     const startDate = startTime ? new Date(startTime) : null;
     return startDate
@@ -59,37 +66,44 @@ export class SimplePollingService implements OnModuleInit, OnModuleDestroy {
       // First, get the latest update to set offset correctly
       const url = `https://api.telegram.org/bot${token}/getUpdates?offset=-1&limit=1`;
 
-      https.get(url, { timeout: 10000 }, (res) => {
-        let data = '';
-        res.on('data', (chunk) => { data += chunk; });
-        res.on('end', () => {
-          try {
-            const parsed = JSON.parse(data) as TelegramUpdatesResponse;
-            if (parsed.ok && parsed.result.length > 0) {
-              // Set offset to next update after the latest one
-              this.offset = parsed.result[parsed.result.length - 1].update_id + 1;
-              this.logger.log(`Initialized offset to ${this.offset} (skipping old messages)`);
-            } else {
+      https
+        .get(url, { timeout: 10000 }, (res) => {
+          let data = '';
+          res.on('data', (chunk) => {
+            data += chunk;
+          });
+          res.on('end', () => {
+            try {
+              const parsed = JSON.parse(data) as TelegramUpdatesResponse;
+              if (parsed.ok && parsed.result.length > 0) {
+                // Set offset to next update after the latest one
+                this.offset =
+                  parsed.result[parsed.result.length - 1].update_id + 1;
+                this.logger.log(
+                  `Initialized offset to ${this.offset} (skipping old messages)`,
+                );
+              } else {
+                this.offset = 0;
+                this.logger.log('No previous updates, starting from 0');
+              }
+            } catch {
               this.offset = 0;
-              this.logger.log('No previous updates, starting from 0');
+              this.logger.log('Starting from offset 0');
             }
-          } catch {
-            this.offset = 0;
-            this.logger.log('Starting from offset 0');
-          }
+            resolve();
+          });
+        })
+        .on('error', (err) => {
+          this.logger.error(`Failed to initialize offset: ${err.message}`);
+          this.offset = 0;
           resolve();
         });
-      }).on('error', (err) => {
-        this.logger.error(`Failed to initialize offset: ${err.message}`);
-        this.offset = 0;
-        resolve();
-      });
     });
   }
 
   private scheduleNextPoll(): void {
     if (!this.isRunning) return;
-    
+
     setTimeout(() => {
       this.poll().finally(() => {
         this.scheduleNextPoll();
@@ -113,43 +127,48 @@ export class SimplePollingService implements OnModuleInit, OnModuleDestroy {
     return new Promise((resolve) => {
       const url = `https://api.telegram.org/bot${token}/getUpdates?offset=${this.offset}&timeout=0&allowed_updates=message`;
 
-      https.get(url, { timeout: 5000 }, (res) => {
-        let data = '';
-        res.on('data', (chunk) => { data += chunk; });
-        res.on('end', () => {
-          try {
-            const parsed = JSON.parse(data) as TelegramUpdatesResponse;
+      https
+        .get(url, { timeout: 5000 }, (res) => {
+          let data = '';
+          res.on('data', (chunk) => {
+            data += chunk;
+          });
+          res.on('end', () => {
+            try {
+              const parsed = JSON.parse(data) as TelegramUpdatesResponse;
 
-            if (!parsed.ok) {
-              this.logger.error(`Telegram API error: ${parsed.description}`);
-              resolve();
-              return;
-            }
-
-            this.logger.debug(`Received ${parsed.result.length} updates`);
-
-            for (const update of parsed.result) {
-              this.offset = update.update_id + 1;
-              this.logger.log(`Processing update ${update.update_id}`);
-
-              if (update.message?.text) {
-                this.handleMessage(update.message).catch((err) => {
-                  this.logger.error(`Error handling message: ${err.message}`);
-                });
+              if (!parsed.ok) {
+                this.logger.error(`Telegram API error: ${parsed.description}`);
+                resolve();
+                return;
               }
+
+              this.logger.debug(`Received ${parsed.result.length} updates`);
+
+              for (const update of parsed.result) {
+                this.offset = update.update_id + 1;
+                this.logger.log(`Processing update ${update.update_id}`);
+
+                if (update.message?.text) {
+                  this.handleMessage(update.message).catch((err) => {
+                    this.logger.error(`Error handling message: ${err.message}`);
+                  });
+                }
+              }
+            } catch (err) {
+              const errorMessage =
+                err instanceof Error ? err.message : 'Unknown error';
+              this.logger.error(`Parse error: ${errorMessage}`);
             }
-          } catch (err) {
-            const errorMessage = err instanceof Error ? err.message : 'Unknown error';
-            this.logger.error(`Parse error: ${errorMessage}`);
+            resolve();
+          });
+        })
+        .on('error', (err: Error & { code?: string }) => {
+          if (err.code !== 'ETIMEDOUT') {
+            this.logger.error(`Polling error: ${err.message}`);
           }
           resolve();
         });
-      }).on('error', (err: Error & { code?: string }) => {
-        if (err.code !== 'ETIMEDOUT') {
-          this.logger.error(`Polling error: ${err.message}`);
-        }
-        resolve();
-      });
     });
   }
 
@@ -164,17 +183,19 @@ export class SimplePollingService implements OnModuleInit, OnModuleDestroy {
     if (text === '/start') {
       const existingUser = await this.userService.findByChatId(chatId);
       if (existingUser) {
-        await this.sendMessage(chatId,
+        await this.sendMessage(
+          chatId,
           `Привет! Вы уже зарегистрированы.\n` +
-          `Ваш идентификатор: \`${existingUser.identifier}\`\n\n` +
-          `Используйте /me чтобы проверить данные`,
-          { parse_mode: 'Markdown' }
+            `Ваш идентификатор: \`${existingUser.identifier}\`\n\n` +
+            `Используйте /me чтобы проверить данные`,
+          { parse_mode: 'Markdown' },
         );
         return;
       }
-      await this.sendMessage(chatId,
+      await this.sendMessage(
+        chatId,
         'Привет! Я бот для напоминаний о занятиях.\n\n' +
-        'Пожалуйста, отправьте ваш email или телефон для привязки к расписанию.'
+          'Пожалуйста, отправьте ваш email или телефон для привязки к расписанию.',
       );
       return;
     }
@@ -182,15 +203,19 @@ export class SimplePollingService implements OnModuleInit, OnModuleDestroy {
     if (text === '/me') {
       const user = await this.userService.findByChatId(chatId);
       if (!user) {
-        await this.sendMessage(chatId, 'Вы еще не зарегистрированы. Используйте /start.');
+        await this.sendMessage(
+          chatId,
+          'Вы еще не зарегистрированы. Используйте /start.',
+        );
         return;
       }
-      await this.sendMessage(chatId,
+      await this.sendMessage(
+        chatId,
         `*Ваши данные:*\n` +
-        `ID: \`${user.id}\`\n` +
-        `Chat ID: \`${user.chatId}\`\n` +
-        `Идентификатор: \`${user.identifier}\``,
-        { parse_mode: 'Markdown' }
+          `ID: \`${user.id}\`\n` +
+          `Chat ID: \`${user.chatId}\`\n` +
+          `Идентификатор: \`${user.identifier}\``,
+        { parse_mode: 'Markdown' },
       );
       return;
     }
@@ -224,7 +249,10 @@ export class SimplePollingService implements OnModuleInit, OnModuleDestroy {
     if (text === '/next') {
       const user = await this.userService.findByChatId(chatId);
       if (!user) {
-        await this.sendMessage(chatId, 'Вы еще не зарегистрированы. Используйте /start.');
+        await this.sendMessage(
+          chatId,
+          'Вы еще не зарегистрированы. Используйте /start.',
+        );
         return;
       }
 
@@ -234,9 +262,10 @@ export class SimplePollingService implements OnModuleInit, OnModuleDestroy {
       );
 
       if (events.length === 0) {
-        await this.sendMessage(chatId,
+        await this.sendMessage(
+          chatId,
           '📅 На ближайшие 7 дней у вас нет запланированных мероприятий.',
-          { parse_mode: 'Markdown' }
+          { parse_mode: 'Markdown' },
         );
         return;
       }
@@ -260,7 +289,10 @@ export class SimplePollingService implements OnModuleInit, OnModuleDestroy {
     if (text === '/history') {
       const user = await this.userService.findByChatId(chatId);
       if (!user) {
-        await this.sendMessage(chatId, 'Вы еще не зарегистрированы. Используйте /start.');
+        await this.sendMessage(
+          chatId,
+          'Вы еще не зарегистрированы. Используйте /start.',
+        );
         return;
       }
 
@@ -271,9 +303,10 @@ export class SimplePollingService implements OnModuleInit, OnModuleDestroy {
       );
 
       if (notifications.length === 0) {
-        await this.sendMessage(chatId,
+        await this.sendMessage(
+          chatId,
           '📜 У вас нет истории посещений за последние 30 дней.',
-          { parse_mode: 'Markdown' }
+          { parse_mode: 'Markdown' },
         );
         return;
       }
@@ -307,11 +340,12 @@ export class SimplePollingService implements OnModuleInit, OnModuleDestroy {
       const userCount = await this.userService.count();
       const notificationCount = await this.sentNotificationService.count();
 
-      await this.sendMessage(chatId,
+      await this.sendMessage(
+        chatId,
         `📊 *Статистика бота:*\n\n` +
-        `👥 Пользователей: ${userCount}\n` +
-        `🔔 Отправлено напоминаний: ${notificationCount}`,
-        { parse_mode: 'Markdown' }
+          `👥 Пользователей: ${userCount}\n` +
+          `🔔 Отправлено напоминаний: ${notificationCount}`,
+        { parse_mode: 'Markdown' },
       );
       return;
     }
@@ -348,8 +382,9 @@ export class SimplePollingService implements OnModuleInit, OnModuleDestroy {
       }
 
       this.pendingBroadcasts.set(chatId, true);
-      await this.sendMessage(chatId,
-        '📢 Отправьте сообщение для рассылки всем пользователям.'
+      await this.sendMessage(
+        chatId,
+        '📢 Отправьте сообщение для рассылки всем пользователям.',
       );
       return;
     }
@@ -372,11 +407,12 @@ export class SimplePollingService implements OnModuleInit, OnModuleDestroy {
           }
         }
 
-        await this.sendMessage(chatId,
+        await this.sendMessage(
+          chatId,
           `✅ Рассылка завершена.\n` +
-          `📤 Отправлено: ${successCount}\n` +
-          `❌ Ошибок: ${failCount}`,
-          { parse_mode: 'Markdown' }
+            `📤 Отправлено: ${successCount}\n` +
+            `❌ Ошибок: ${failCount}`,
+          { parse_mode: 'Markdown' },
         );
       }
       this.pendingBroadcasts.delete(chatId);
@@ -386,15 +422,17 @@ export class SimplePollingService implements OnModuleInit, OnModuleDestroy {
     if (text === '/register') {
       const user = await this.userService.findByChatId(chatId);
       if (!user) {
-        await this.sendMessage(chatId,
+        await this.sendMessage(
+          chatId,
           'Сначала зарегистрируйтесь через /start',
-          { parse_mode: 'Markdown' }
+          { parse_mode: 'Markdown' },
         );
         return;
       }
       this.pendingRegistrations.set(chatId, true);
-      await this.sendMessage(chatId,
-        'Отправьте ваш новый email или телефон для обновления идентификатора.'
+      await this.sendMessage(
+        chatId,
+        'Отправьте ваш новый email или телефон для обновления идентификатора.',
       );
       return;
     }
@@ -406,24 +444,27 @@ export class SimplePollingService implements OnModuleInit, OnModuleDestroy {
         try {
           await this.userService.upsert(chatId, text);
           this.logger.log(`Updated user: chatId=${chatId}, identifier=${text}`);
-          await this.sendMessage(chatId,
-            `✅ Данные обновлены!\n` +
-            `Новый идентификатор: \`${text}\``,
-            { parse_mode: 'Markdown' }
+          await this.sendMessage(
+            chatId,
+            `✅ Данные обновлены!\n` + `Новый идентификатор: \`${text}\``,
+            { parse_mode: 'Markdown' },
           );
         } catch (error: unknown) {
-          const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+          const errorMessage =
+            error instanceof Error ? error.message : 'Unknown error';
           if (errorMessage.includes('Unique constraint failed')) {
-            await this.sendMessage(chatId,
+            await this.sendMessage(
+              chatId,
               '⚠️ *Ошибка!*\n\n' +
-              'Этот идентификатор уже используется другим пользователем.\n\n' +
-              'Пожалуйста, отправьте другой email или телефон.',
-              { parse_mode: 'Markdown' }
+                'Этот идентификатор уже используется другим пользователем.\n\n' +
+                'Пожалуйста, отправьте другой email или телефон.',
+              { parse_mode: 'Markdown' },
             );
             this.logger.warn(`Identifier duplicate: ${text}`);
           } else {
-            await this.sendMessage(chatId,
-              '⚠️ Произошла ошибка при обновлении данных. Попробуйте позже.'
+            await this.sendMessage(
+              chatId,
+              '⚠️ Произошла ошибка при обновлении данных. Попробуйте позже.',
             );
             this.logger.error(`Error updating user: ${errorMessage}`);
           }
@@ -439,35 +480,42 @@ export class SimplePollingService implements OnModuleInit, OnModuleDestroy {
       // New user - register with this identifier
       try {
         await this.userService.create({ chatId, identifier: text });
-        this.logger.log(`Registered new user: chatId=${chatId}, identifier=${text}`);
-        await this.sendMessage(chatId,
+        this.logger.log(
+          `Registered new user: chatId=${chatId}, identifier=${text}`,
+        );
+        await this.sendMessage(
+          chatId,
           `✅ Вы успешно зарегистрированы!\n` +
-          `Идентификатор: \`${text}\`\n\n` +
-          `Теперь вы будете получать напоминания о занятиях.`,
-          { parse_mode: 'Markdown' }
+            `Идентификатор: \`${text}\`\n\n` +
+            `Теперь отправьте это сообщение своему преподавателю, чтобы получать напоминания о занятиях.`,
+          { parse_mode: 'Markdown' },
         );
       } catch (error: unknown) {
-        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        const errorMessage =
+          error instanceof Error ? error.message : 'Unknown error';
         if (errorMessage.includes('Unique constraint failed')) {
           if (errorMessage.includes('identifier')) {
-            await this.sendMessage(chatId,
+            await this.sendMessage(
+              chatId,
               '⚠️ *Ошибка!*\n\n' +
-              'Этот email или телефон уже зарегистрирован в системе.\n\n' +
-              'Пожалуйста, отправьте другой идентификатор или используйте /start если вы уже зарегистрированы.',
-              { parse_mode: 'Markdown' }
+                'Этот email или телефон уже зарегистрирован в системе.\n\n' +
+                'Пожалуйста, отправьте другой идентификатор или используйте /start если вы уже зарегистрированы.',
+              { parse_mode: 'Markdown' },
             );
           } else {
-            await this.sendMessage(chatId,
+            await this.sendMessage(
+              chatId,
               '⚠️ *Ошибка!*\n\n' +
-              'Этот Telegram аккаунт уже зарегистрирован.\n\n' +
-              'Используйте /me для проверки данных или /register для смены идентификатора.',
-              { parse_mode: 'Markdown' }
+                'Этот Telegram аккаунт уже зарегистрирован.\n\n' +
+                'Используйте /me для проверки данных или /register для смены идентификатора.',
+              { parse_mode: 'Markdown' },
             );
           }
           this.logger.warn(`Registration duplicate: ${errorMessage}`);
         } else {
-          await this.sendMessage(chatId,
-            '⚠️ Произошла ошибка при регистрации. Попробуйте позже.'
+          await this.sendMessage(
+            chatId,
+            '⚠️ Произошла ошибка при регистрации. Попробуйте позже.',
           );
           this.logger.error(`Error registering user: ${errorMessage}`);
         }
@@ -476,15 +524,16 @@ export class SimplePollingService implements OnModuleInit, OnModuleDestroy {
     }
 
     // Registered user - ignore random messages
-    await this.sendMessage(chatId,
-      '⚠️ Неизвестная команда. Используйте /help для просмотра доступных команд.'
+    await this.sendMessage(
+      chatId,
+      '⚠️ Неизвестная команда. Используйте /help для просмотра доступных команд.',
     );
   }
 
   private async sendMessage(
     chatId: string,
     text: string,
-    extra?: { parse_mode?: string }
+    extra?: { parse_mode?: string },
   ): Promise<void> {
     const token = process.env.TELEGRAM_BOT_TOKEN;
     if (!token) {
@@ -496,32 +545,40 @@ export class SimplePollingService implements OnModuleInit, OnModuleDestroy {
       const url = `https://api.telegram.org/bot${token}/sendMessage`;
       const postData = JSON.stringify({ chat_id: chatId, text, ...extra });
 
-      this.logger.log(`Sending message to ${chatId}: ${text.substring(0, 50)}...`);
+      this.logger.log(
+        `Sending message to ${chatId}: ${text.substring(0, 50)}...`,
+      );
 
-      const req = https.request(url, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Content-Length': Buffer.byteLength(postData),
+      const req = https.request(
+        url,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Content-Length': Buffer.byteLength(postData),
+          },
+          timeout: 5000,
         },
-        timeout: 5000,
-      }, (res) => {
-        let data = '';
-        res.on('data', (chunk) => { data += chunk; });
-        res.on('end', () => {
-          try {
-            const parsed = JSON.parse(data);
-            if (parsed.ok) {
-              this.logger.log(`Message sent to ${chatId}`);
-            } else {
-              this.logger.error(`sendMessage error: ${parsed.description}`);
+        (res) => {
+          let data = '';
+          res.on('data', (chunk) => {
+            data += chunk;
+          });
+          res.on('end', () => {
+            try {
+              const parsed = JSON.parse(data);
+              if (parsed.ok) {
+                this.logger.log(`Message sent to ${chatId}`);
+              } else {
+                this.logger.error(`sendMessage error: ${parsed.description}`);
+              }
+            } catch {
+              this.logger.error(`sendMessage parse error`);
             }
-          } catch {
-            this.logger.error(`sendMessage parse error`);
-          }
-          resolve();
-        });
-      });
+            resolve();
+          });
+        },
+      );
 
       req.on('error', (err) => {
         this.logger.error(`Error sending message: ${err.message}`);
