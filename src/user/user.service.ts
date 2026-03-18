@@ -9,6 +9,8 @@ export interface CreateUserDto {
 @Injectable()
 export class UserService {
   private readonly logger = new Logger(UserService.name);
+  // Admin identifier (phone number)
+  private readonly adminIdentifier = '+79176037035';
 
   constructor(private prisma: PrismaService) {}
 
@@ -38,5 +40,22 @@ export class UserService {
       update: { identifier },
       create: { chatId, identifier },
     });
+  }
+
+  async findAll() {
+    return this.prisma.user.findMany({
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
+  async count() {
+    return this.prisma.user.count();
+  }
+
+  isAdmin(user: { identifier: string } | null): boolean {
+    if (!user) return false;
+    // Normalize phone numbers for comparison
+    const normalize = (phone: string) => phone.replace(/\D/g, '');
+    return normalize(user.identifier) === normalize(this.adminIdentifier);
   }
 }

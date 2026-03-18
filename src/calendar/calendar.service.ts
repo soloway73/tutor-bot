@@ -96,4 +96,112 @@ export class CalendarService {
 
     return null;
   }
+
+  /**
+   * Get upcoming events that match the given identifier
+   */
+  async getUpcomingEventsByIdentifier(
+    identifier: string,
+    limit = 2,
+  ): Promise<CalendarEvent[]> {
+    if (!this.calendar) {
+      this.logger.error('Calendar API not initialized');
+      return [];
+    }
+
+    try {
+      // Get events for the next 7 days
+      const now = new Date();
+      const endTime = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+
+      const response = await this.calendar.events.list({
+        calendarId: this.calendarId,
+        timeMin: now.toISOString(),
+        timeMax: endTime.toISOString(),
+        singleEvents: true,
+        orderBy: 'startTime',
+      });
+
+      const allEvents = response.data.items || [];
+      this.logger.log(
+        `Found ${allEvents.length} upcoming events, filtering by identifier: ${identifier}`,
+      );
+
+      // Filter events that contain the identifier
+      const matchingEvents = allEvents.filter((event) => {
+        const eventIdentifier = this.parseIdentifier(event as CalendarEvent);
+        return eventIdentifier === identifier;
+      });
+
+      // Return only the requested number of events
+      const result = matchingEvents.slice(0, limit);
+      this.logger.log(
+        `Returning ${result.length} matching events for identifier: ${identifier}`,
+      );
+      return result as CalendarEvent[];
+    } catch (error: unknown) {
+      const errorMessage =
+        error instanceof Error ? error.message : 'Unknown error';
+      const errorStack = error instanceof Error ? error.stack : undefined;
+      this.logger.error(
+        `Error fetching calendar events: ${errorMessage}`,
+        errorStack,
+      );
+      return [];
+    }
+  }
+
+  /**
+   * Get past events that match the given identifier (for history)
+   */
+  async getPastEventsByIdentifier(
+    identifier: string,
+    limit = 10,
+  ): Promise<CalendarEvent[]> {
+    if (!this.calendar) {
+      this.logger.error('Calendar API not initialized');
+      return [];
+    }
+
+    try {
+      // Get events from the last 30 days
+      const now = new Date();
+      const startTime = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+
+      const response = await this.calendar.events.list({
+        calendarId: this.calendarId,
+        timeMin: startTime.toISOString(),
+        timeMax: now.toISOString(),
+        singleEvents: true,
+        orderBy: 'startTime',
+      });
+
+      const allEvents = response.data.items || [];
+      this.logger.log(
+        `Found ${allEvents.length} past events, filtering by identifier: ${identifier}`,
+      );
+
+      // Filter events that contain the identifier
+      const matchingEvents = allEvents.filter((event) => {
+        const eventIdentifier = this.parseIdentifier(event as CalendarEvent);
+        return eventIdentifier === identifier;
+      });
+
+      // Return the most recent events (reverse order)
+      const result = matchingEvents.reverse().slice(0, limit);
+      this.logger.log(
+        `Returning ${result.length} matching past events for identifier: ${identifier}`,
+      );
+      return result as CalendarEvent[];
+    } catch (error: unknown) {
+      const errorMessage =
+        error instanceof Error ? error.message : 'Unknown error';
+      const errorStack = error instanceof Error ? error.stack : undefined;
+      this.logger.error(
+        `Error fetching past calendar events: ${errorMessage}`,
+        errorStack,
+      );
+      return [];
+    }
+  }
 }

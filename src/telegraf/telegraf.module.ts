@@ -3,9 +3,10 @@ import { TelegrafService } from './telegraf.service';
 import { SimplePollingService } from './simple-polling.service';
 import { UserModule } from '../user/user.module';
 import { CalendarModule } from '../calendar/calendar.module';
+import { NotificationModule } from '../notification/notification.module';
 
 @Module({
-  imports: [UserModule, CalendarModule],
+  imports: [UserModule, CalendarModule, NotificationModule],
   providers: [TelegrafService, SimplePollingService],
   exports: [TelegrafService],
 })
