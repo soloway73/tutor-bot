@@ -1,6 +1,10 @@
 import { NestFactory } from '@nestjs/core';
 import { Logger, ValidationPipe } from '@nestjs/common';
 import { AppModule } from './app.module';
+import * as dotenv from 'dotenv';
+
+// Load .env file before anything else
+dotenv.config();
 
 async function bootstrap() {
   const logger = new Logger('Bootstrap');

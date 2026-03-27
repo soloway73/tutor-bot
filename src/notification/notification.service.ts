@@ -7,15 +7,18 @@ import { UserService } from '../user/user.service';
 @Injectable()
 export class NotificationService {
   private readonly logger = new Logger(NotificationService.name);
+  private botToken: string;
 
   constructor(
     private telegrafService: TelegrafService,
     private sentNotificationService: SentNotificationService,
     private userService: UserService,
-  ) {}
+  ) {
+    this.botToken = process.env.TELEGRAM_BOT_TOKEN || '';
+  }
 
   /**
-   * Send lesson reminder to user
+   * Send lesson reminder to user using direct API call with proxy
    */
   async sendReminder(event: CalendarEvent, identifier: string): Promise<void> {
     try {
@@ -51,14 +54,14 @@ export class NotificationService {
           })
         : 'время не указано';
 
-      // Send message
+      // Send message using direct API call
       const message =
         `📚 *Напоминание о занятии*\n\n` +
         `*Гитарный кабинет*\n` +
         `*Время:* ${timeString} (МСК+1)\n\n` +
         `Не забудьте подготовиться к занятию!`;
 
-      await this.telegrafService.sendMessage(user.chatId, message, {
+      await this.sendMessageWithProxy(user.chatId, message, {
         parse_mode: 'Markdown',
       });
 
@@ -72,5 +75,69 @@ export class NotificationService {
       const errorStack = error instanceof Error ? error.stack : undefined;
       this.logger.error(`Error sending reminder: ${errorMessage}`, errorStack);
     }
+  }
+
+  /**
+   * Send message using direct Telegram API call with proxy support
+   */
+  private async sendMessageWithProxy(
+    chatId: string,
+    text: string,
+    extra?: any,
+  ): Promise<void> {
+    const proxyUrl = process.env.TELEGRAM_PROXY_URL;
+    const botToken = process.env.TELEGRAM_BOT_TOKEN;
+    const url = `https://api.telegram.org/bot${botToken}/sendMessage`;
+
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const https = require('https');
+
+    const options: any = {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    };
+
+    // Create agent based on proxy type using hpagent
+    if (proxyUrl) {
+      const parsedUrl = new URL(proxyUrl);
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const { HttpsProxyAgent } = require('hpagent');
+      
+      options.agent = new HttpsProxyAgent({
+        proxy: proxyUrl,
+        rejectUnauthorized: false,
+      });
+    }
+
+    return new Promise((resolve, reject) => {
+      const req = https.request(url, options, (res: any) => {
+        let data = '';
+        res.on('data', (chunk: any) => (data += chunk));
+        res.on('end', () => {
+          try {
+            const result = JSON.parse(data);
+            if (result.ok) {
+              resolve();
+            } else {
+              reject(new Error(`Telegram API error: ${result.description}`));
+            }
+          } catch (e) {
+            reject(e);
+          }
+        });
+      });
+
+      req.on('error', reject);
+      req.write(
+        JSON.stringify({
+          chat_id: chatId,
+          text,
+          ...extra,
+        }),
+      );
+      req.end();
+    });
   }
 }

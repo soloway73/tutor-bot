@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Context, Telegraf } from 'telegraf';
-import { HttpsProxyAgent } from 'https-proxy-agent';
+import * as https from 'https';
+import * as tls from 'tls';
 
 @Injectable()
 export class TelegrafService {
@@ -15,6 +16,10 @@ export class TelegrafService {
     this.logger.log(`Token present: ${!!token}`);
     this.logger.log(`Proxy URL: ${proxyUrl || 'none'}`);
 
+    // Disable TLS certificate verification for SOCKS5 proxy compatibility
+    // This is a workaround for TLS handshake issues through SOCKS5 proxies
+    process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
+
     if (token) {
       const options: any = {};
 
@@ -22,14 +27,10 @@ export class TelegrafService {
       if (proxyUrl) {
         this.logger.log(`Using proxy: ${proxyUrl}`);
         try {
-          // Use dynamic import for socks-proxy-agent (ES module)
-          if (proxyUrl.startsWith('socks')) {
-            // Lazy load socks-proxy-agent
-            const { SocksProxyAgent } = require('socks-proxy-agent');
-            options.agent = new SocksProxyAgent(proxyUrl);
-          } else {
-            options.agent = new HttpsProxyAgent(proxyUrl);
-          }
+          // Use ProxyAgent which automatically handles socks/http proxies
+          // eslint-disable-next-line @typescript-eslint/no-require-imports
+          const { ProxyAgent } = require('proxy-agent');
+          options.agent = new ProxyAgent(proxyUrl);
           this.logger.log('Proxy configured successfully');
         } catch (error: unknown) {
           const errorMessage =

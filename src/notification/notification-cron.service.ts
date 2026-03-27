@@ -1,10 +1,10 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { CalendarService } from '../calendar/calendar.service';
 import { NotificationService } from '../notification/notification.service';
 
 @Injectable()
-export class NotificationCronService {
+export class NotificationCronService implements OnModuleInit {
   private readonly logger = new Logger(NotificationCronService.name);
 
   constructor(
@@ -12,11 +12,15 @@ export class NotificationCronService {
     private notificationService: NotificationService,
   ) {}
 
+  onModuleInit() {
+    this.logger.log('NotificationCronService initialized!');
+  }
+
   /**
-   * Check for upcoming lessons every 10 minutes
+   * Check for upcoming lessons every 3 minutes
    * Sends reminders for events starting within the next 2 hours
    */
-  @Cron(CronExpression.EVERY_10_MINUTES)
+  @Cron('*/3 * * * *')
   async checkLessons(): Promise<void> {
     this.logger.debug('Running scheduled lesson check...');
 

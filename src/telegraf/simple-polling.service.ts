@@ -14,6 +14,7 @@ export class SimplePollingService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(SimplePollingService.name);
   private isRunning = false;
   private offset = 0;
+  private agent: any = null;
   // Map to track users waiting for identifier input after /register command
   private pendingRegistrations = new Map<string, boolean>();
   // Map to track admin users waiting for broadcast message
@@ -25,23 +26,24 @@ export class SimplePollingService implements OnModuleInit, OnModuleDestroy {
     private sentNotificationService: SentNotificationService,
   ) {}
 
-  private formatEventTime(
-    event: import('../calendar/calendar.service').CalendarEvent,
-  ): string {
-    const startTime = event.start?.dateTime || event.start?.date;
-    const startDate = startTime ? new Date(startTime) : null;
-    return startDate
-      ? startDate.toLocaleString('ru-RU', {
-          timeZone: 'Europe/Samara',
-          day: 'numeric',
-          month: 'long',
-          hour: '2-digit',
-          minute: '2-digit',
-        })
-      : 'время не указано';
-  }
-
   async onModuleInit(): Promise<void> {
+    // Configure proxy agent if provided
+    const proxyUrl = process.env.TELEGRAM_PROXY_URL;
+    if (proxyUrl) {
+      try {
+        // eslint-disable-next-line @typescript-eslint/no-require-imports
+        const { HttpsProxyAgent } = require('hpagent');
+        this.agent = new HttpsProxyAgent({
+          proxy: proxyUrl,
+          rejectUnauthorized: false,
+        });
+        this.logger.log(`HTTPS proxy agent configured for ${proxyUrl}`);
+      } catch (error: unknown) {
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        this.logger.error(`Failed to configure proxy agent: ${errorMessage}`);
+      }
+    }
+
     const token = process.env.TELEGRAM_BOT_TOKEN;
     if (!token) {
       this.logger.warn('Telegram bot token not provided');
@@ -60,14 +62,39 @@ export class SimplePollingService implements OnModuleInit, OnModuleDestroy {
     this.logger.log('Simple polling started');
   }
 
+  private formatEventTime(
+    event: import('../calendar/calendar.service').CalendarEvent,
+  ): string {
+    const startTime = event.start?.dateTime || event.start?.date;
+    const startDate = startTime ? new Date(startTime) : null;
+    return startDate
+      ? startDate.toLocaleString('ru-RU', {
+          timeZone: 'Europe/Samara',
+          day: 'numeric',
+          month: 'long',
+          hour: '2-digit',
+          minute: '2-digit',
+        })
+      : 'время не указано';
+  }
+
   private async initializeOffset(): Promise<void> {
     const token = process.env.TELEGRAM_BOT_TOKEN;
     return new Promise((resolve) => {
       // First, get the latest update to set offset correctly
       const url = `https://api.telegram.org/bot${token}/getUpdates?offset=-1&limit=1`;
 
+      const options: https.RequestOptions = {
+        timeout: 10000,
+      };
+
+      // Use proxy agent if configured
+      if (this.agent) {
+        options.agent = this.agent;
+      }
+
       https
-        .get(url, { timeout: 10000 }, (res) => {
+        .get(url, options, (res) => {
           let data = '';
           res.on('data', (chunk) => {
             data += chunk;
@@ -127,8 +154,17 @@ export class SimplePollingService implements OnModuleInit, OnModuleDestroy {
     return new Promise((resolve) => {
       const url = `https://api.telegram.org/bot${token}/getUpdates?offset=${this.offset}&timeout=0&allowed_updates=message`;
 
+      const options: https.RequestOptions = {
+        timeout: 5000,
+      };
+
+      // Use proxy agent if configured
+      if (this.agent) {
+        options.agent = this.agent;
+      }
+
       https
-        .get(url, { timeout: 5000 }, (res) => {
+        .get(url, options, (res) => {
           let data = '';
           res.on('data', (chunk) => {
             data += chunk;
@@ -549,16 +585,23 @@ export class SimplePollingService implements OnModuleInit, OnModuleDestroy {
         `Sending message to ${chatId}: ${text.substring(0, 50)}...`,
       );
 
+      const options: https.RequestOptions = {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Content-Length': Buffer.byteLength(postData),
+        },
+        timeout: 5000,
+      };
+
+      // Use proxy agent if configured
+      if (this.agent) {
+        options.agent = this.agent;
+      }
+
       const req = https.request(
         url,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Content-Length': Buffer.byteLength(postData),
-          },
-          timeout: 5000,
-        },
+        options,
         (res) => {
           let data = '';
           res.on('data', (chunk) => {

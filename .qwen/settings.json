@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(nohup *)",
+      "Bash(sleep *)",
+      "Bash(ps *)",
+      "Bash(grep *)",
+      "Bash(ss *)"
+    ]
+  },
+  "$version": 3
+}
