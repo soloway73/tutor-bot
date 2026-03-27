@@ -1,0 +1,116 @@
+Приношу извинения за предыдущий ответ — вы были абсолютно правы! 🙏
+
+Поиск подтвердил: **1 марта 2026 года действительно вышла версия Bot API 9.5**, в которую добавили тип сущности `date_time` [[1]][[16]]. Эта сущность позволяет ботам отображать дату и время в нативном, интерактивном формате, который пользователь может добавить в «Избранное» или установить как напоминание.
+
+---
+
+## 📋 Как работает `date_time` в Bot API 9.5
+
+Согласно документации, тип `date_time` добавляет два новых поля в объект `MessageEntity` [[50]]:
+
+| Поле | Тип | Описание |
+|------|-----|----------|
+| `type` | string | Всегда значение `"date_time"` |
+| `unix_time` | integer | Unix-timestamp даты/времени, которое нужно отобразить |
+| `date_time_format` | string (опционально) | Формат отображения (если поддерживается клиентом) |
+
+---
+
+## 💻 Пример использования (Python + aiogram 3.x)
+
+```python
+from aiogram import Bot, types
+from aiogram.types import MessageEntity
+import time
+
+# Время урока: например, завтра в 15:30
+lesson_timestamp = 1735311000  # замените на актуальный unix-time
+
+# Создаём сущность date_time
+date_entity = MessageEntity(
+    type="date_time",
+    offset=0,  # позиция начала сущности в тексте
+    length=1,  # длина сущности (минимум 1 символ)
+    unix_time=lesson_timestamp
+    # date_time_format можно не указывать — клиент Telegram выберет формат автоматически
+)
+
+# Текст, в котором будет «зашита» сущность
+# Важно: сущность должна ссылаться на конкретный символ/подстроку в тексте
+text = "📅 Урок гитары"
+
+# Отправляем сообщение с entities
+await bot.send_message(
+    chat_id=chat_id,
+    text=text,
+    entities=[date_entity]
+)
+```
+
+> ⚠️ **Важно**: Сущность `date_time` привязывается к позиции в тексте через `offset` и `length`. Даже если вы хотите отобразить время для всего сообщения, укажите хотя бы один символ (например, эмодзи 📅), к которому будет привязана сущность.
+
+---
+
+## 🔄 Альтернатива: отправка через `parse_mode` не работает
+
+Сущности типа `date_time` **нельзя** создать через Markdown или HTML-разметку — они передаются только программно через параметр `entities` в методах отправки сообщений (`sendMessage`, `editMessageText` и др.).
+
+---
+
+## 🛠 Поддержка в библиотеках
+
+Убедитесь, что вы используете актуальные версии библиотек:
+
+| Библиотека | Минимальная версия | Примечание |
+|------------|-------------------|------------|
+| **aiogram** | 3.26.0+ | Поддержка `unix_time` и `date_time_format` в `MessageEntity` [[50]] |
+| **python-telegram-bot** | 22.7+ | Полная поддержка Bot API 9.5 [[18]] |
+| **Telegram.Bot (C#)** | 22.0+ | Поддержка API 9.5 [[14]] |
+
+Проверьте версию:
+```bash
+# Для aiogram
+pip install --upgrade aiogram
+
+# Для python-telegram-bot
+pip install --upgrade python-telegram-bot
+```
+
+---
+
+## 🎯 Практическое применение для вашего бота с расписанием
+
+Для напоминаний об уроках гитары:
+
+```python
+async def send_lesson_reminder(chat_id: int, lesson_time: datetime):
+    from aiogram.types import MessageEntity
+    
+    unix_ts = int(lesson_time.timestamp())
+    
+    # Сущность привязывается к эмодзи 📅
+    entity = MessageEntity(
+        type="date_time",
+        offset=0,  # 📅 — первый символ
+        length=1,
+        unix_time=unix_ts
+    )
+    
+    await bot.send_message(
+        chat_id=chat_id,
+        text="📅 Ваш урок гитары",
+        entities=[entity]
+    )
+```
+
+Пользователь увидит интерактивную дату: при нажатии на неё можно будет добавить событие в календарь или создать напоминание.
+
+---
+
+## 🔗 Полезные ссылки
+
+- Официальный чейнджлог: [core.telegram.org/bots/api-changelog](https://core.telegram.org/bots/api-changelog) [[17]]
+- Документация Bot API: [core.telegram.org/bots/api](https://core.telegram.org/bots/api) [[1]]
+- Документация aiogram: [docs.aiogram.dev](https://docs.aiogram.dev) [[50]]
+
+Если вы уточните, на какой библиотеке написан ваш бот (aiogram, python-telegram-bot, telebot и др.), я помогу с более конкретным примером кода. 🎸✨

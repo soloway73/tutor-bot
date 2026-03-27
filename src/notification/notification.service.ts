@@ -3,6 +3,7 @@ import { TelegrafService } from '../telegraf/telegraf.service';
 import { CalendarEvent } from '../calendar/calendar.service';
 import { SentNotificationService } from './sent-notification.service';
 import { UserService } from '../user/user.service';
+import { DateTimeEntityService } from '../telegraf/date-time-entity.service';
 
 @Injectable()
 export class NotificationService {
@@ -13,6 +14,7 @@ export class NotificationService {
     private telegrafService: TelegrafService,
     private sentNotificationService: SentNotificationService,
     private userService: UserService,
+    private dateTimeEntityService: DateTimeEntityService,
   ) {
     this.botToken = process.env.TELEGRAM_BOT_TOKEN || '';
   }
@@ -54,6 +56,21 @@ export class NotificationService {
           })
         : 'время не указано';
 
+      // Create date_time entity for interactive date (Bot API 9.5+)
+      const entities: any[] = [];
+      if (startDate && !isNaN(startDate.getTime())) {
+        const unixTime = this.dateTimeEntityService.isoToUnix(startTime);
+        if (unixTime) {
+          // Attach date_time entity to the clock emoji (position 0, length 1)
+          entities.push({
+            type: 'date_time',
+            offset: 0,
+            length: 1,
+            unix_time: unixTime,
+          });
+        }
+      }
+
       // Send message using direct API call
       const message =
         `📚 *Напоминание о занятии*\n\n` +
@@ -63,6 +80,7 @@ export class NotificationService {
 
       await this.sendMessageWithProxy(user.chatId, message, {
         parse_mode: 'Markdown',
+        entities: entities.length > 0 ? entities : undefined,
       });
 
       // Mark as sent
