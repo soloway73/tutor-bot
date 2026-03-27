@@ -76,6 +76,7 @@ export class CalendarService {
 
   /**
    * Extract identifier (phone or email) from event description or summary
+   * Нормализует идентификатор: удаляет пробелы, email приводит к нижнему регистру
    */
   parseIdentifier(event: CalendarEvent): string | null {
     const text = `${event.summary || ''} ${event.description || ''}`;
@@ -84,13 +85,15 @@ export class CalendarService {
     const emailPattern = /[a-zA-Z0-9._-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/;
     const emailMatch = text.match(emailPattern);
     if (emailMatch) {
-      return emailMatch[0];
+      // Normalize email: remove spaces and convert to lowercase
+      return emailMatch[0].replace(/\s/g, '').toLowerCase();
     }
 
     // Try to find phone pattern (simple pattern, adjust as needed)
     const phonePattern = /\+?\d[\d\s-]{8,}\d/;
     const phoneMatch = text.match(phonePattern);
     if (phoneMatch) {
+      // Normalize phone: remove all spaces
       return phoneMatch[0].replace(/\s/g, '');
     }
 
