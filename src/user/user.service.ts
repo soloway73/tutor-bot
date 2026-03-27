@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { IdentifierNormalizationService } from './identifier-normalization.service';
 
 export interface CreateUserDto {
   chatId: string;
@@ -12,11 +13,21 @@ export class UserService {
   // Admin identifier (phone number)
   private readonly adminIdentifier = '+79176037035';
 
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private normalizationService: IdentifierNormalizationService,
+  ) {}
 
   async create(data: CreateUserDto) {
-    this.logger.log(`Creating user with chatId: ${data.chatId}`);
-    return this.prisma.user.create({ data });
+    const normalizedIdentifier = this.normalizationService.normalize(
+      data.identifier,
+    );
+    this.logger.log(
+      `Creating user with chatId: ${data.chatId}, identifier: ${data.identifier} -> ${normalizedIdentifier}`,
+    );
+    return this.prisma.user.create({
+      data: { ...data, identifier: normalizedIdentifier },
+    });
   }
 
   async findByChatId(chatId: string) {
@@ -24,7 +35,8 @@ export class UserService {
   }
 
   async findByIdentifier(identifier: string) {
-    return this.prisma.user.findUnique({ where: { identifier } });
+    const normalized = this.normalizationService.normalize(identifier);
+    return this.prisma.user.findUnique({ where: { identifier: normalized } });
   }
 
   async findById(id: number) {
@@ -32,13 +44,14 @@ export class UserService {
   }
 
   async upsert(chatId: string, identifier: string) {
+    const normalizedIdentifier = this.normalizationService.normalize(identifier);
     this.logger.log(
-      `Upserting user with chatId: ${chatId}, identifier: ${identifier}`,
+      `Upserting user with chatId: ${chatId}, identifier: ${identifier} -> ${normalizedIdentifier}`,
     );
     return this.prisma.user.upsert({
       where: { chatId },
-      update: { identifier },
-      create: { chatId, identifier },
+      update: { identifier: normalizedIdentifier },
+      create: { chatId, identifier: normalizedIdentifier },
     });
   }
 

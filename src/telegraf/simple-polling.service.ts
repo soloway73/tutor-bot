@@ -7,6 +7,7 @@ import {
 import { UserService } from '../user/user.service';
 import { CalendarService } from '../calendar/calendar.service';
 import { SentNotificationService } from '../notification/sent-notification.service';
+import { IdentifierNormalizationService } from '../user/identifier-normalization.service';
 import * as https from 'https';
 
 @Injectable()
@@ -24,6 +25,7 @@ export class SimplePollingService implements OnModuleInit, OnModuleDestroy {
     private userService: UserService,
     private calendarService: CalendarService,
     private sentNotificationService: SentNotificationService,
+    private normalizationService: IdentifierNormalizationService,
   ) {}
 
   async onModuleInit(): Promise<void> {
@@ -478,11 +480,13 @@ export class SimplePollingService implements OnModuleInit, OnModuleDestroy {
       const user = await this.userService.findByChatId(chatId);
       if (user) {
         try {
-          await this.userService.upsert(chatId, text);
-          this.logger.log(`Updated user: chatId=${chatId}, identifier=${text}`);
+          // Normalize identifier before saving
+          const normalizedText = this.normalizationService.normalize(text);
+          await this.userService.upsert(chatId, normalizedText);
+          this.logger.log(`Updated user: chatId=${chatId}, identifier=${normalizedText}`);
           await this.sendMessage(
             chatId,
-            `✅ Данные обновлены!\n` + `Новый идентификатор: \`${text}\``,
+            `✅ Данные обновлены!\n` + `Новый идентификатор: \`${normalizedText}\``,
             { parse_mode: 'Markdown' },
           );
         } catch (error: unknown) {
@@ -515,14 +519,16 @@ export class SimplePollingService implements OnModuleInit, OnModuleDestroy {
     if (!user) {
       // New user - register with this identifier
       try {
-        await this.userService.create({ chatId, identifier: text });
+        // Normalize identifier before saving
+        const normalizedText = this.normalizationService.normalize(text);
+        await this.userService.create({ chatId, identifier: normalizedText });
         this.logger.log(
-          `Registered new user: chatId=${chatId}, identifier=${text}`,
+          `Registered new user: chatId=${chatId}, identifier=${normalizedText}`,
         );
         await this.sendMessage(
           chatId,
           `✅ Вы успешно зарегистрированы!\n` +
-            `Идентификатор: \`${text}\`\n\n` +
+            `Идентификатор: \`${normalizedText}\`\n\n` +
             `Теперь отправьте это сообщение своему преподавателю, чтобы получать напоминания о занятиях.`,
           { parse_mode: 'Markdown' },
         );
