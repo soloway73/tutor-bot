@@ -334,8 +334,11 @@ export class SimplePollingService implements OnModuleInit, OnModuleDestroy {
         return;
       }
 
-      // Get past events from Google Calendar
-      const events = await this.calendarService.getRecentPastEvents(16);
+      // Get past events from Google Calendar for this user's identifier
+      const events = await this.calendarService.getRecentPastEventsByIdentifier(
+        user.identifier,
+        16,
+      );
 
       if (events.length === 0) {
         await this.sendMessage(
