@@ -334,33 +334,43 @@ export class SimplePollingService implements OnModuleInit, OnModuleDestroy {
         return;
       }
 
-      // Get sent notifications for this user
-      const notifications = await this.sentNotificationService.findByUserId(
-        user.id,
-        10,
-      );
+      // Get past events from Google Calendar
+      const events = await this.calendarService.getRecentPastEvents(16);
 
-      if (notifications.length === 0) {
+      if (events.length === 0) {
         await this.sendMessage(
           chatId,
-          '📜 У вас нет истории посещений за последние 30 дней.',
+          '📜 У вас нет истории посещений за последние 90 дней.',
           { parse_mode: 'Markdown' },
         );
         return;
       }
 
-      let message = `📜 *История занятий (последние ${notifications.length}):*\n\n`;
-      notifications.forEach((notification, index) => {
-        const date = new Date(notification.sentAt);
-        const dateStr = date.toLocaleDateString('ru-RU', {
+      let message = `📜 *История занятий (последние ${events.length}):*\n\n`;
+      events.forEach((event, index) => {
+        const startDate = event.start?.dateTime
+          ? new Date(event.start.dateTime)
+          : event.start?.date
+            ? new Date(event.start.date)
+            : new Date();
+
+        const dateStr = startDate.toLocaleDateString('ru-RU', {
           timeZone: 'Europe/Samara',
           day: 'numeric',
           month: 'long',
+          year: 'numeric',
           hour: '2-digit',
           minute: '2-digit',
         });
-        message += `*${index + 1}. ${dateStr}*\n`;
-        message += `🔔 Напоминание отправлено\n\n`;
+
+        const title = event.summary || 'Без названия';
+        const description = event.description
+          ? event.description.split('\n').join('\n    ')
+          : 'Описание отсутствует';
+
+        message += `*${index + 1}. ${title}*\n`;
+        message += `📅 ${dateStr}\n`;
+        message += `📝 ${description}\n\n`;
       });
 
       await this.sendMessage(chatId, message, { parse_mode: 'Markdown' });

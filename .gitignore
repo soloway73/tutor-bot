@@ -42,3 +42,6 @@ coverage/
 
 # Docker
 docker-compose.override.yml
+
+# Keys
+link.txt
