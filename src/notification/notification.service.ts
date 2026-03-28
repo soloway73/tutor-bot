@@ -100,15 +100,17 @@ export class NotificationService {
     };
 
     // Create agent based on proxy type using hpagent
+    // IMPORTANT: Use exact proxy URL from env, don't inherit system defaults
     if (proxyUrl) {
-      const parsedUrl = new URL(proxyUrl);
+      this.logger.debug(`Using proxy: ${proxyUrl}`);
       // eslint-disable-next-line @typescript-eslint/no-require-imports
       const { HttpsProxyAgent } = require('hpagent');
-      
+
       options.agent = new HttpsProxyAgent({
         proxy: proxyUrl,
         rejectUnauthorized: false,
       });
+      this.logger.debug(`Proxy agent configured: ${proxyUrl}`);
     }
 
     return new Promise((resolve, reject) => {

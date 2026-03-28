@@ -24,14 +24,19 @@ export class TelegrafService {
       const options: any = {};
 
       // Configure proxy if provided
+      // IMPORTANT: Use hpagent instead of proxy-agent (proxy-agent is ESM-only and has compatibility issues)
       if (proxyUrl) {
         this.logger.log(`Using proxy: ${proxyUrl}`);
         try {
-          // Use ProxyAgent which automatically handles socks/http proxies
+          // Use HttpsProxyAgent from hpagent for consistent proxy handling
+          // This ensures the exact proxy URL (including port) is used without inheriting system defaults
           // eslint-disable-next-line @typescript-eslint/no-require-imports
-          const { ProxyAgent } = require('proxy-agent');
-          options.agent = new ProxyAgent(proxyUrl);
-          this.logger.log('Proxy configured successfully');
+          const { HttpsProxyAgent } = require('hpagent');
+          options.agent = new HttpsProxyAgent({
+            proxy: proxyUrl,
+            rejectUnauthorized: false,
+          });
+          this.logger.log(`Proxy configured successfully with hpagent: ${proxyUrl}`);
         } catch (error: unknown) {
           const errorMessage =
             error instanceof Error ? error.message : 'Unknown error';

@@ -207,4 +207,100 @@ export class CalendarService {
       return [];
     }
   }
+
+  /**
+   * Get recent past events for user history (last 16 events)
+   */
+  async getRecentPastEvents(limit = 16): Promise<CalendarEvent[]> {
+    if (!this.calendar) {
+      this.logger.error('Calendar API not initialized');
+      return [];
+    }
+
+    try {
+      // Get events from the last 90 days to ensure we have enough
+      const now = new Date();
+      const startTime = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
+
+      const response = await this.calendar.events.list({
+        calendarId: this.calendarId,
+        timeMin: startTime.toISOString(),
+        timeMax: now.toISOString(),
+        singleEvents: true,
+        orderBy: 'startTime',
+      });
+
+      const allEvents = response.data.items || [];
+      this.logger.log(`Found ${allEvents.length} past events`);
+
+      // Return the most recent events in reverse chronological order
+      const result = allEvents.reverse().slice(0, limit);
+      this.logger.log(`Returning ${result.length} recent past events`);
+      return result as CalendarEvent[];
+    } catch (error: unknown) {
+      const errorMessage =
+        error instanceof Error ? error.message : 'Unknown error';
+      const errorStack = error instanceof Error ? error.stack : undefined;
+      this.logger.error(
+        `Error fetching recent past calendar events: ${errorMessage}`,
+        errorStack,
+      );
+      return [];
+    }
+  }
+
+  /**
+   * Get recent past events for a specific user identifier (last 16 events)
+   * Returns events in chronological order (oldest first)
+   */
+  async getRecentPastEventsByIdentifier(
+    identifier: string,
+    limit = 16,
+  ): Promise<CalendarEvent[]> {
+    if (!this.calendar) {
+      this.logger.error('Calendar API not initialized');
+      return [];
+    }
+
+    try {
+      // Get events from the last 90 days to ensure we have enough
+      const now = new Date();
+      const startTime = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
+
+      const response = await this.calendar.events.list({
+        calendarId: this.calendarId,
+        timeMin: startTime.toISOString(),
+        timeMax: now.toISOString(),
+        singleEvents: true,
+        orderBy: 'startTime',
+      });
+
+      const allEvents = response.data.items || [];
+      this.logger.log(
+        `Found ${allEvents.length} past events, filtering by identifier: ${identifier}`,
+      );
+
+      // Filter events that match the user's identifier
+      const matchingEvents = allEvents.filter((event) => {
+        const eventIdentifier = this.parseIdentifier(event as CalendarEvent);
+        return eventIdentifier === identifier;
+      });
+
+      // Return events in chronological order (oldest first), take last N
+      const result = matchingEvents.slice(-limit);
+      this.logger.log(
+        `Returning ${result.length} matching past events for identifier: ${identifier}`,
+      );
+      return result as CalendarEvent[];
+    } catch (error: unknown) {
+      const errorMessage =
+        error instanceof Error ? error.message : 'Unknown error';
+      const errorStack = error instanceof Error ? error.stack : undefined;
+      this.logger.error(
+        `Error fetching recent past calendar events for identifier: ${errorMessage}`,
+        errorStack,
+      );
+      return [];
+    }
+  }
 }
