@@ -251,6 +251,7 @@ export class CalendarService {
 
   /**
    * Get recent past events for a specific user identifier (last 16 events)
+   * Returns events in chronological order (oldest first)
    */
   async getRecentPastEventsByIdentifier(
     identifier: string,
@@ -285,8 +286,8 @@ export class CalendarService {
         return eventIdentifier === identifier;
       });
 
-      // Return the most recent events in reverse chronological order
-      const result = matchingEvents.reverse().slice(0, limit);
+      // Return events in chronological order (oldest first), take last N
+      const result = matchingEvents.slice(-limit);
       this.logger.log(
         `Returning ${result.length} matching past events for identifier: ${identifier}`,
       );
