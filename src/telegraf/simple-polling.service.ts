@@ -314,8 +314,8 @@ export class SimplePollingService implements OnModuleInit, OnModuleDestroy {
         message += `*${index + 1}. ${event.summary || 'Без названия'}*\n`;
         message += `🕐 ${timeString} (МСК+1)\n`;
         if (event.description) {
-          const shortDesc = event.description.substring(0, 100);
-          message += `📝 ${shortDesc}${event.description.length > 100 ? '...' : ''}\n`;
+          const formattedDesc = event.description.split('\n').join('\n');
+          message += `📝 ${formattedDesc}\n`;
         }
         message += '\n';
       });
