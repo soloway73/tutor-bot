@@ -267,7 +267,7 @@ export class SimplePollingService implements OnModuleInit, OnModuleDestroy {
         '/start - Начать работу\n' +
         '/me - Показать ваши данные\n' +
         '/next - Показать 2 ближайших мероприятия\n' +
-        '/history - Показать историю занятий (за 30 дней)\n' +
+        '/history - Показать историю занятий (последние 16)\n' +
         '/register - Перерегистрироваться\n';
 
       if (isAdmin) {

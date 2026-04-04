@@ -266,11 +266,14 @@ export class CalendarService {
       // Get events from the last 90 days to ensure we have enough
       const now = new Date();
       const startTime = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
+      // Set timeMax to end of current day to include today's events
+      const endTime = new Date(now);
+      endTime.setHours(23, 59, 59, 999);
 
       const response = await this.calendar.events.list({
         calendarId: this.calendarId,
         timeMin: startTime.toISOString(),
-        timeMax: now.toISOString(),
+        timeMax: endTime.toISOString(),
         singleEvents: true,
         orderBy: 'startTime',
       });
@@ -282,9 +285,14 @@ export class CalendarService {
 
       // Filter events that match the user's identifier
       const matchingEvents = allEvents.filter((event) => {
-        const eventIdentifier = this.parseIdentifier(event as CalendarEvent);
+        const e = event as CalendarEvent;
+        const eventIdentifier = this.parseIdentifier(e);
         return eventIdentifier === identifier;
       });
+
+      this.logger.log(
+        `After filtering: ${matchingEvents.length} matching events out of ${allEvents.length} total`,
+      );
 
       // Return events in chronological order (oldest first), take last N
       const result = matchingEvents.slice(-limit);
