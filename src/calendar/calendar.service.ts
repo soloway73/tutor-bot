@@ -270,36 +270,39 @@ export class CalendarService {
       const endTime = new Date(now);
       endTime.setHours(23, 59, 59, 999);
 
-      const response = await this.calendar.events.list({
-        calendarId: this.calendarId,
-        timeMin: startTime.toISOString(),
-        timeMax: endTime.toISOString(),
-        singleEvents: true,
-        orderBy: 'startTime',
-      });
+      // Fetch all events using pagination (default maxResults is 250)
+      let allEvents: calendar_v3.Schema$Event[] = [];
+      let pageToken: string | undefined;
 
-      const allEvents = response.data.items || [];
+      do {
+        const response = await this.calendar.events.list({
+          calendarId: this.calendarId,
+          timeMin: startTime.toISOString(),
+          timeMax: endTime.toISOString(),
+          singleEvents: true,
+          orderBy: 'startTime',
+          maxResults: 250,
+          pageToken,
+        });
+
+        allEvents = [...allEvents, ...(response.data.items || [])];
+        pageToken = response.data.nextPageToken;
+      } while (pageToken);
+
       this.logger.log(
-        `Found ${allEvents.length} past events, filtering by identifier: ${identifier}`,
+        `Found ${allEvents.length} past events (fetched via pagination), filtering by identifier: ${identifier}`,
       );
 
       // Filter events that match the user's identifier
-      // Log last 30 events (most recent) and all matching events
-      const lastIndex = allEvents.length - 1;
-      const matchingEvents = allEvents.filter((event, idx) => {
+      const matchingEvents = allEvents.filter((event) => {
         const e = event as CalendarEvent;
         const eventIdentifier = this.parseIdentifier(e);
-        const matches = eventIdentifier === identifier;
-        const isRecent = idx >= lastIndex - 29;
-        if (matches || isRecent) {
-          const startDate = e.start?.dateTime || e.start?.date || 'no-date';
-          this.logger.log(
-            `[HISTORY-DEBUG] Event#${idx}: "${e.summary}" | date: ${startDate} | ` +
-              `parsed: "${eventIdentifier}" | target: "${identifier}" | match: ${matches}`,
-          );
-        }
-        return matches;
+        return eventIdentifier === identifier;
       });
+
+      this.logger.log(
+        `After filtering: ${matchingEvents.length} matching events out of ${allEvents.length} total`,
+      );
 
       // Sort matching events by startTime descending (most recent first)
       matchingEvents.sort((a, b) => {
@@ -307,10 +310,6 @@ export class CalendarService {
         const bTime = (b as CalendarEvent).start?.dateTime || (b as CalendarEvent).start?.date || '';
         return bTime.localeCompare(aTime);
       });
-
-      this.logger.log(
-        `After filtering: ${matchingEvents.length} matching events out of ${allEvents.length} total`,
-      );
 
       // Return most recent N events (newest first, already sorted)
       const result = matchingEvents.slice(0, limit);
