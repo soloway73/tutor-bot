@@ -301,14 +301,21 @@ export class CalendarService {
         return matches;
       });
 
+      // Sort matching events by startTime descending (most recent first)
+      matchingEvents.sort((a, b) => {
+        const aTime = (a as CalendarEvent).start?.dateTime || (a as CalendarEvent).start?.date || '';
+        const bTime = (b as CalendarEvent).start?.dateTime || (b as CalendarEvent).start?.date || '';
+        return bTime.localeCompare(aTime);
+      });
+
       this.logger.log(
         `After filtering: ${matchingEvents.length} matching events out of ${allEvents.length} total`,
       );
 
-      // Return events in chronological order (oldest first), take last N
-      const result = matchingEvents.slice(-limit);
+      // Return most recent N events (newest first, already sorted)
+      const result = matchingEvents.slice(0, limit);
       this.logger.log(
-        `Returning ${result.length} matching past events for identifier: ${identifier}`,
+        `Returning ${result.length} matching past events for identifier: ${identifier} (newest first)`,
       );
       return result as CalendarEvent[];
     } catch (error: unknown) {
