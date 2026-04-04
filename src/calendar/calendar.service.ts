@@ -270,17 +270,27 @@ export class CalendarService {
       const endTime = new Date(now);
       endTime.setHours(23, 59, 59, 999);
 
-      const response = await this.calendar.events.list({
-        calendarId: this.calendarId,
-        timeMin: startTime.toISOString(),
-        timeMax: endTime.toISOString(),
-        singleEvents: true,
-        orderBy: 'startTime',
-      });
+      // Fetch all events using pagination (default maxResults is 250)
+      let allEvents: calendar_v3.Schema$Event[] = [];
+      let pageToken: string | undefined;
 
-      const allEvents = response.data.items || [];
+      do {
+        const response = await this.calendar.events.list({
+          calendarId: this.calendarId,
+          timeMin: startTime.toISOString(),
+          timeMax: endTime.toISOString(),
+          singleEvents: true,
+          orderBy: 'startTime',
+          maxResults: 250,
+          pageToken,
+        });
+
+        allEvents = [...allEvents, ...(response.data.items || [])];
+        pageToken = response.data.nextPageToken ?? undefined;
+      } while (pageToken);
+
       this.logger.log(
-        `Found ${allEvents.length} past events, filtering by identifier: ${identifier}`,
+        `Found ${allEvents.length} past events (fetched via pagination), filtering by identifier: ${identifier}`,
       );
 
       // Filter events that match the user's identifier
@@ -294,10 +304,17 @@ export class CalendarService {
         `After filtering: ${matchingEvents.length} matching events out of ${allEvents.length} total`,
       );
 
-      // Return events in chronological order (oldest first), take last N
-      const result = matchingEvents.slice(-limit);
+      // Sort matching events by startTime descending (most recent first)
+      matchingEvents.sort((a, b) => {
+        const aTime = (a as CalendarEvent).start?.dateTime || (a as CalendarEvent).start?.date || '';
+        const bTime = (b as CalendarEvent).start?.dateTime || (b as CalendarEvent).start?.date || '';
+        return bTime.localeCompare(aTime);
+      });
+
+      // Return most recent N events (newest first, already sorted)
+      const result = matchingEvents.slice(0, limit);
       this.logger.log(
-        `Returning ${result.length} matching past events for identifier: ${identifier}`,
+        `Returning ${result.length} matching past events for identifier: ${identifier} (newest first)`,
       );
       return result as CalendarEvent[];
     } catch (error: unknown) {
