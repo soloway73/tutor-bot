@@ -287,7 +287,16 @@ export class CalendarService {
       const matchingEvents = allEvents.filter((event) => {
         const e = event as CalendarEvent;
         const eventIdentifier = this.parseIdentifier(e);
-        return eventIdentifier === identifier;
+        const matches = eventIdentifier === identifier;
+        // Log first 30 events for debugging
+        if (allEvents.indexOf(event) < 30) {
+          const startDate = e.start?.dateTime || e.start?.date || 'no-date';
+          this.logger.log(
+            `[HISTORY-DEBUG] Event: "${e.summary}" | date: ${startDate} | ` +
+              `parsed: "${eventIdentifier}" | target: "${identifier}" | match: ${matches}`,
+          );
+        }
+        return matches;
       });
 
       this.logger.log(
