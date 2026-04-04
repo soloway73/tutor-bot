@@ -284,15 +284,17 @@ export class CalendarService {
       );
 
       // Filter events that match the user's identifier
-      const matchingEvents = allEvents.filter((event) => {
+      // Log last 30 events (most recent) and all matching events
+      const lastIndex = allEvents.length - 1;
+      const matchingEvents = allEvents.filter((event, idx) => {
         const e = event as CalendarEvent;
         const eventIdentifier = this.parseIdentifier(e);
         const matches = eventIdentifier === identifier;
-        // Log first 30 events for debugging
-        if (allEvents.indexOf(event) < 30) {
+        const isRecent = idx >= lastIndex - 29;
+        if (matches || isRecent) {
           const startDate = e.start?.dateTime || e.start?.date || 'no-date';
           this.logger.log(
-            `[HISTORY-DEBUG] Event: "${e.summary}" | date: ${startDate} | ` +
+            `[HISTORY-DEBUG] Event#${idx}: "${e.summary}" | date: ${startDate} | ` +
               `parsed: "${eventIdentifier}" | target: "${identifier}" | match: ${matches}`,
           );
         }
