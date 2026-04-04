@@ -286,7 +286,7 @@ export class CalendarService {
         });
 
         allEvents = [...allEvents, ...(response.data.items || [])];
-        pageToken = response.data.nextPageToken;
+        pageToken = response.data.nextPageToken ?? undefined;
       } while (pageToken);
 
       this.logger.log(
