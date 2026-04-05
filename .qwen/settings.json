@@ -8,7 +8,11 @@
       "Bash(ss *)",
       "Bash(git commit *)",
       "Bash(node *)",
-      "Bash(git pull)"
+      "Bash(git pull)",
+      "Bash(fuser *)",
+      "Bash(bash *)",
+      "Bash(python3 *)",
+      "Bash(kill *)"
     ]
   },
   "$version": 3

@@ -508,6 +508,11 @@ export class SimplePollingService implements OnModuleInit, OnModuleDestroy {
               `${u.identifier} (chat: ${u.chatId})`,
             );
           }
+
+          // Delay between messages to avoid overloading the proxy
+          if (u !== allUsers[allUsers.length - 1]) {
+            await new Promise((resolve) => setTimeout(resolve, 2000));
+          }
         }
 
         // Send summary to admin
@@ -583,6 +588,11 @@ export class SimplePollingService implements OnModuleInit, OnModuleDestroy {
             failedUsers.push(
               `${u.identifier} (chat: ${u.chatId})`,
             );
+          }
+
+          // Delay between messages to avoid overloading the proxy
+          if (u !== testUsers[testUsers.length - 1]) {
+            await new Promise((resolve) => setTimeout(resolve, 2000));
           }
         }
 

@@ -11,12 +11,12 @@ module.exports = {
       env: {
         NODE_ENV: 'production',
         PORT: 3000,
-        TELEGRAM_PROXY_URL: 'socks5://127.0.0.1:7891',
+        TELEGRAM_PROXY_URL: 'http://127.0.0.1:7890',
       },
       env_production: {
         NODE_ENV: 'production',
         PORT: 3000,
-        TELEGRAM_PROXY_URL: 'socks5://127.0.0.1:7891',
+        TELEGRAM_PROXY_URL: 'http://127.0.0.1:7890',
       },
       error_file: './logs/pm2-error.log',
       out_file: './logs/pm2-out.log',
