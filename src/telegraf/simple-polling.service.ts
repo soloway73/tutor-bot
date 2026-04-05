@@ -41,7 +41,8 @@ export class SimplePollingService implements OnModuleInit, OnModuleDestroy {
         });
         this.logger.log(`HTTPS proxy agent configured for ${proxyUrl}`);
       } catch (error: unknown) {
-        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        const errorMessage =
+          error instanceof Error ? error.message : 'Unknown error';
         this.logger.error(`Failed to configure proxy agent: ${errorMessage}`);
       }
     }
@@ -444,27 +445,68 @@ export class SimplePollingService implements OnModuleInit, OnModuleDestroy {
     if (this.pendingBroadcasts.has(chatId)) {
       const user = await this.userService.findByChatId(chatId);
       if (user && this.userService.isAdmin(user)) {
-        // This is a broadcast message
         const allUsers = await this.userService.findAll();
+
+        if (allUsers.length === 0) {
+          await this.sendMessage(
+            chatId,
+            '⚠️ В базе данных нет пользователей. Рассылка невозможна.',
+          );
+          this.pendingBroadcasts.delete(chatId);
+          return;
+        }
+
+        // Check if message has text (shouldn't happen since we only process text messages)
+        if (!text) {
+          await this.sendMessage(
+            chatId,
+            '⚠️ Рассылка поддерживает только текстовые сообщения. Отправьте текст.',
+          );
+          this.pendingBroadcasts.delete(chatId);
+          return;
+        }
+
+        this.logger.log(
+          `Starting broadcast to ${allUsers.length} users. Message: "${text.substring(0, 100)}${text.length > 100 ? '...' : ''}"`,
+        );
+
         let successCount = 0;
         let failCount = 0;
+        const failedUsers: string[] = [];
 
         for (const u of allUsers) {
           try {
             await this.sendMessage(u.chatId, text);
             successCount++;
-          } catch {
+            this.logger.log(
+              `Broadcast sent to chatId=${u.chatId} (${u.identifier})`,
+            );
+          } catch (error: unknown) {
             failCount++;
+            const errorMessage =
+              error instanceof Error ? error.message : 'Unknown error';
+            this.logger.error(
+              `Broadcast FAILED for chatId=${u.chatId} (${u.identifier}): ${errorMessage}`,
+            );
+            failedUsers.push(
+              `${u.identifier} (chat: ${u.chatId}) - ${errorMessage}`,
+            );
           }
         }
 
-        await this.sendMessage(
-          chatId,
+        // Send summary to admin
+        let summary =
           `✅ Рассылка завершена.\n` +
-            `📤 Отправлено: ${successCount}\n` +
-            `❌ Ошибок: ${failCount}`,
-          { parse_mode: 'Markdown' },
-        );
+          `📤 Отправлено: ${successCount}\n` +
+          `❌ Ошибок: ${failCount}`;
+
+        if (failedUsers.length > 0 && failedUsers.length <= 5) {
+          summary += `\n\n*Неудачные попытки:*\n${failedUsers.map((f) => `- ${f}`).join('\n')}`;
+        } else if (failedUsers.length > 5) {
+          summary += `\n\n*Неудачные попытки:* ${failedUsers.length} пользователей (см. логи)`;
+        }
+
+        await this.sendMessage(chatId, summary, { parse_mode: 'Markdown' });
       }
       this.pendingBroadcasts.delete(chatId);
       return;
@@ -496,10 +538,13 @@ export class SimplePollingService implements OnModuleInit, OnModuleDestroy {
           // Normalize identifier before saving
           const normalizedText = this.normalizationService.normalize(text);
           await this.userService.upsert(chatId, normalizedText);
-          this.logger.log(`Updated user: chatId=${chatId}, identifier=${normalizedText}`);
+          this.logger.log(
+            `Updated user: chatId=${chatId}, identifier=${normalizedText}`,
+          );
           await this.sendMessage(
             chatId,
-            `✅ Данные обновлены!\n` + `Новый идентификатор: \`${normalizedText}\``,
+            `✅ Данные обновлены!\n` +
+              `Новый идентификатор: \`${normalizedText}\``,
             { parse_mode: 'Markdown' },
           );
         } catch (error: unknown) {
@@ -618,29 +663,25 @@ export class SimplePollingService implements OnModuleInit, OnModuleDestroy {
         options.agent = this.agent;
       }
 
-      const req = https.request(
-        url,
-        options,
-        (res) => {
-          let data = '';
-          res.on('data', (chunk) => {
-            data += chunk;
-          });
-          res.on('end', () => {
-            try {
-              const parsed = JSON.parse(data);
-              if (parsed.ok) {
-                this.logger.log(`Message sent to ${chatId}`);
-              } else {
-                this.logger.error(`sendMessage error: ${parsed.description}`);
-              }
-            } catch {
-              this.logger.error(`sendMessage parse error`);
+      const req = https.request(url, options, (res) => {
+        let data = '';
+        res.on('data', (chunk) => {
+          data += chunk;
+        });
+        res.on('end', () => {
+          try {
+            const parsed = JSON.parse(data);
+            if (parsed.ok) {
+              this.logger.log(`Message sent to ${chatId}`);
+            } else {
+              this.logger.error(`sendMessage error: ${parsed.description}`);
             }
-            resolve();
-          });
-        },
-      );
+          } catch {
+            this.logger.error(`sendMessage parse error`);
+          }
+          resolve();
+        });
+      });
 
       req.on('error', (err) => {
         this.logger.error(`Error sending message: ${err.message}`);

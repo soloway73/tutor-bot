@@ -14,6 +14,10 @@ import { CalendarModule } from '../calendar/calendar.module';
     SentNotificationService,
     NotificationCronService,
   ],
-  exports: [NotificationService, SentNotificationService, NotificationCronService],
+  exports: [
+    NotificationService,
+    SentNotificationService,
+    NotificationCronService,
+  ],
 })
 export class NotificationModule {}

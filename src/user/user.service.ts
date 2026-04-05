@@ -44,7 +44,8 @@ export class UserService {
   }
 
   async upsert(chatId: string, identifier: string) {
-    const normalizedIdentifier = this.normalizationService.normalize(identifier);
+    const normalizedIdentifier =
+      this.normalizationService.normalize(identifier);
     this.logger.log(
       `Upserting user with chatId: ${chatId}, identifier: ${identifier} -> ${normalizedIdentifier}`,
     );

@@ -46,7 +46,7 @@ export class NotificationService {
       const startDate = startTime ? new Date(startTime) : null;
       const timeString = startDate
         ? startDate.toLocaleString('ru-RU', {
-            timeZone: 'Europe/Samara',  // GMT+4
+            timeZone: 'Europe/Samara', // GMT+4
             day: 'numeric',
             month: 'long',
             hour: '2-digit',

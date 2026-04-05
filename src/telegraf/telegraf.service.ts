@@ -36,7 +36,9 @@ export class TelegrafService {
             proxy: proxyUrl,
             rejectUnauthorized: false,
           });
-          this.logger.log(`Proxy configured successfully with hpagent: ${proxyUrl}`);
+          this.logger.log(
+            `Proxy configured successfully with hpagent: ${proxyUrl}`,
+          );
         } catch (error: unknown) {
           const errorMessage =
             error instanceof Error ? error.message : 'Unknown error';
@@ -76,7 +78,7 @@ export class TelegrafService {
 
   async launch(): Promise<void> {
     this.logger.log('Launch called (no-op, using SimplePollingService)');
-    
+
     if (!this.bot) {
       this.logger.error('Bot not initialized, cannot launch');
       throw new Error('Bot not initialized');
@@ -89,12 +91,14 @@ export class TelegrafService {
 
     // No-op - polling is handled by SimplePollingService
     this.isRunning = true;
-    this.logger.log('Bot marked as running (SimplePollingService handles polling)');
+    this.logger.log(
+      'Bot marked as running (SimplePollingService handles polling)',
+    );
   }
 
   stop(): void {
     this.logger.log('Stop called');
-    
+
     if (!this.bot) {
       this.logger.warn('Bot not initialized');
       return;

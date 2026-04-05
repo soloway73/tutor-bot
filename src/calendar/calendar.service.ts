@@ -306,8 +306,14 @@ export class CalendarService {
 
       // Sort matching events by startTime descending (most recent first)
       matchingEvents.sort((a, b) => {
-        const aTime = (a as CalendarEvent).start?.dateTime || (a as CalendarEvent).start?.date || '';
-        const bTime = (b as CalendarEvent).start?.dateTime || (b as CalendarEvent).start?.date || '';
+        const aTime =
+          (a as CalendarEvent).start?.dateTime ||
+          (a as CalendarEvent).start?.date ||
+          '';
+        const bTime =
+          (b as CalendarEvent).start?.dateTime ||
+          (b as CalendarEvent).start?.date ||
+          '';
         return bTime.localeCompare(aTime);
       });
 
