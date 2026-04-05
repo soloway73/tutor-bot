@@ -475,21 +475,19 @@ export class SimplePollingService implements OnModuleInit, OnModuleDestroy {
         const failedUsers: string[] = [];
 
         for (const u of allUsers) {
-          try {
-            await this.sendMessage(u.chatId, text);
+          const sent = await this.sendMessage(u.chatId, text);
+          if (sent) {
             successCount++;
             this.logger.log(
               `Broadcast sent to chatId=${u.chatId} (${u.identifier})`,
             );
-          } catch (error: unknown) {
+          } else {
             failCount++;
-            const errorMessage =
-              error instanceof Error ? error.message : 'Unknown error';
             this.logger.error(
-              `Broadcast FAILED for chatId=${u.chatId} (${u.identifier}): ${errorMessage}`,
+              `Broadcast FAILED for chatId=${u.chatId} (${u.identifier}) after all retries`,
             );
             failedUsers.push(
-              `${u.identifier} (chat: ${u.chatId}) - ${errorMessage}`,
+              `${u.identifier} (chat: ${u.chatId})`,
             );
           }
         }
@@ -634,20 +632,56 @@ export class SimplePollingService implements OnModuleInit, OnModuleDestroy {
     chatId: string,
     text: string,
     extra?: { parse_mode?: string },
-  ): Promise<void> {
+    maxRetries = 3,
+  ): Promise<boolean> {
     const token = process.env.TELEGRAM_BOT_TOKEN;
     if (!token) {
       this.logger.error('TELEGRAM_BOT_TOKEN not set');
-      return;
+      return false;
     }
 
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      const success = await this.makeRequest(chatId, text, extra, attempt);
+      if (success) {
+        return true;
+      }
+
+      // Wait before retry (exponential backoff)
+      if (attempt < maxRetries) {
+        const delay = 1000 * attempt; // 1s, 2s
+        this.logger.log(
+          `Retrying message to ${chatId} (attempt ${attempt + 1}/${maxRetries}) after ${delay}ms`,
+        );
+        await new Promise((resolve) => setTimeout(resolve, delay));
+      }
+    }
+
+    this.logger.error(
+      `Failed to send message to ${chatId} after ${maxRetries} attempts`,
+    );
+    return false;
+  }
+
+  private makeRequest(
+    chatId: string,
+    text: string,
+    extra?: { parse_mode?: string },
+    attempt?: number,
+  ): Promise<boolean> {
     return new Promise((resolve) => {
+      const token = process.env.TELEGRAM_BOT_TOKEN!;
       const url = `https://api.telegram.org/bot${token}/sendMessage`;
       const postData = JSON.stringify({ chat_id: chatId, text, ...extra });
 
-      this.logger.log(
-        `Sending message to ${chatId}: ${text.substring(0, 50)}...`,
-      );
+      if (attempt) {
+        this.logger.log(
+          `Sending message to ${chatId} (attempt ${attempt}): ${text.substring(0, 50)}...`,
+        );
+      } else {
+        this.logger.log(
+          `Sending message to ${chatId}: ${text.substring(0, 50)}...`,
+        );
+      }
 
       const options: https.RequestOptions = {
         method: 'POST',
@@ -655,13 +689,20 @@ export class SimplePollingService implements OnModuleInit, OnModuleDestroy {
           'Content-Type': 'application/json',
           'Content-Length': Buffer.byteLength(postData),
         },
-        timeout: 5000,
       };
 
       // Use proxy agent if configured
       if (this.agent) {
         options.agent = this.agent;
       }
+
+      let settled = false;
+      const settle = (result: boolean) => {
+        if (!settled) {
+          settled = true;
+          resolve(result);
+        }
+      };
 
       const req = https.request(url, options, (res) => {
         let data = '';
@@ -673,25 +714,41 @@ export class SimplePollingService implements OnModuleInit, OnModuleDestroy {
             const parsed = JSON.parse(data);
             if (parsed.ok) {
               this.logger.log(`Message sent to ${chatId}`);
+              settle(true);
             } else {
-              this.logger.error(`sendMessage error: ${parsed.description}`);
+              this.logger.error(
+                `sendMessage error for ${chatId}: ${parsed.description}`,
+              );
+              // Don't retry on Telegram API errors (likely permanent)
+              settle(false);
             }
           } catch {
-            this.logger.error(`sendMessage parse error`);
+            this.logger.error(`sendMessage parse error for ${chatId}`);
+            settle(false);
           }
-          resolve();
         });
       });
 
       req.on('error', (err) => {
-        this.logger.error(`Error sending message: ${err.message}`);
-        resolve();
+        this.logger.error(
+          `Error sending message to ${chatId}: ${err.message}`,
+        );
+        settle(false);
       });
 
-      req.on('timeout', () => {
+      // Set manual timeout
+      const timeoutMs = 8000;
+      const timeout = setTimeout(() => {
         req.destroy();
-        this.logger.error('sendMessage timeout');
-        resolve();
+        this.logger.error(
+          `sendMessage timeout after ${timeoutMs}ms for ${chatId}`,
+        );
+        settle(false);
+      }, timeoutMs);
+
+      // Clear timeout when request completes
+      req.on('close', () => {
+        clearTimeout(timeout);
       });
 
       req.write(postData);

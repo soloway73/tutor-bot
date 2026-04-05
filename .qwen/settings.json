@@ -7,7 +7,8 @@
       "Bash(grep *)",
       "Bash(ss *)",
       "Bash(git commit *)",
-      "Bash(node *)"
+      "Bash(node *)",
+      "Bash(git pull)"
     ]
   },
   "$version": 3
