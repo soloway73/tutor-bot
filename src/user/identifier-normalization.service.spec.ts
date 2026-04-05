@@ -26,12 +26,8 @@ describe('IdentifierNormalizationService', () => {
     });
 
     it('should remove spaces from emails', () => {
-      expect(service.normalize('user @ example.com')).toBe(
-        'user@example.com',
-      );
-      expect(service.normalize('user@ exam ple.com')).toBe(
-        'user@example.com',
-      );
+      expect(service.normalize('user @ example.com')).toBe('user@example.com');
+      expect(service.normalize('user@ exam ple.com')).toBe('user@example.com');
     });
 
     it('should convert emails to lowercase', () => {
@@ -40,9 +36,7 @@ describe('IdentifierNormalizationService', () => {
     });
 
     it('should handle emails with spaces and mixed case', () => {
-      expect(service.normalize('User @ Example.COM')).toBe(
-        'user@example.com',
-      );
+      expect(service.normalize('User @ Example.COM')).toBe('user@example.com');
       expect(service.normalize(' Test.User @ Test.Domain.RU ')).toBe(
         'test.user@test.domain.ru',
       );
