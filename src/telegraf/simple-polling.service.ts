@@ -20,6 +20,8 @@ export class SimplePollingService implements OnModuleInit, OnModuleDestroy {
   private pendingRegistrations = new Map<string, boolean>();
   // Map to track admin users waiting for broadcast message
   private pendingBroadcasts = new Map<string, boolean>();
+  // Map to track admin users waiting for test broadcast message
+  private pendingTestBroadcasts = new Map<string, boolean>();
 
   constructor(
     private userService: UserService,
@@ -441,6 +443,22 @@ export class SimplePollingService implements OnModuleInit, OnModuleDestroy {
       return;
     }
 
+    // Test broadcast - only sends to specific test users
+    if (text === '/broadcasttest') {
+      const user = await this.userService.findByChatId(chatId);
+      if (!this.userService.isAdmin(user)) {
+        await this.sendMessage(chatId, '⛔️ У вас нет прав администратора.');
+        return;
+      }
+
+      this.pendingTestBroadcasts.set(chatId, true);
+      await this.sendMessage(
+        chatId,
+        '🧪 [ТЕСТ] Отправьте сообщение для тестовой рассылки (только 2 пользователя).',
+      );
+      return;
+    }
+
     // Handle broadcast message (after /broadcast command)
     if (this.pendingBroadcasts.has(chatId)) {
       const user = await this.userService.findByChatId(chatId);
@@ -507,6 +525,79 @@ export class SimplePollingService implements OnModuleInit, OnModuleDestroy {
         await this.sendMessage(chatId, summary, { parse_mode: 'Markdown' });
       }
       this.pendingBroadcasts.delete(chatId);
+      return;
+    }
+
+    // Handle test broadcast message (after /broadcasttest command)
+    if (this.pendingTestBroadcasts.has(chatId)) {
+      const user = await this.userService.findByChatId(chatId);
+      if (user && this.userService.isAdmin(user)) {
+        if (!text) {
+          await this.sendMessage(
+            chatId,
+            '⚠️ Рассылка поддерживает только текстовые сообщения. Отправьте текст.',
+          );
+          this.pendingTestBroadcasts.delete(chatId);
+          return;
+        }
+
+        // Filter users to only the two test phone numbers
+        const testIdentifiers = ['+79176037035', '89533559871'];
+        const allUsers = await this.userService.findAll();
+        const testUsers = allUsers.filter((u) =>
+          testIdentifiers.some(
+            (testId) =>
+              u.identifier.replace(/\D/g, '') === testId.replace(/\D/g, ''),
+          ),
+        );
+
+        if (testUsers.length === 0) {
+          await this.sendMessage(
+            chatId,
+            '⚠️ Тестовые пользователи не найдены в базе данных.',
+          );
+          this.pendingTestBroadcasts.delete(chatId);
+          return;
+        }
+
+        this.logger.log(
+          `Starting TEST broadcast to ${testUsers.length} users. Message: "${text.substring(0, 100)}${text.length > 100 ? '...' : ''}"`,
+        );
+
+        let successCount = 0;
+        let failCount = 0;
+        const failedUsers: string[] = [];
+
+        for (const u of testUsers) {
+          const sent = await this.sendMessage(u.chatId, text);
+          if (sent) {
+            successCount++;
+            this.logger.log(
+              `TEST Broadcast sent to chatId=${u.chatId} (${u.identifier})`,
+            );
+          } else {
+            failCount++;
+            this.logger.error(
+              `TEST Broadcast FAILED for chatId=${u.chatId} (${u.identifier}) after all retries`,
+            );
+            failedUsers.push(
+              `${u.identifier} (chat: ${u.chatId})`,
+            );
+          }
+        }
+
+        let summary =
+          `🧪 ТЕСТОВАЯ рассылка завершена.\n` +
+          `📤 Отправлено: ${successCount}\n` +
+          `❌ Ошибок: ${failCount}`;
+
+        if (failedUsers.length > 0) {
+          summary += `\n\n*Неудачные попытки:*\n${failedUsers.map((f) => `- ${f}`).join('\n')}`;
+        }
+
+        await this.sendMessage(chatId, summary, { parse_mode: 'Markdown' });
+      }
+      this.pendingTestBroadcasts.delete(chatId);
       return;
     }
 
